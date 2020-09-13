@@ -1,0 +1,15 @@
+env
+sounds
+build
+dist
+env-test
+env-ops
+*.egg-info
+*.swp
+__pycache__
+*.pyc
+env-twine
+env-docs
+env-test
+env
+env-release

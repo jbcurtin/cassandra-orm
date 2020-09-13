@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools >= 35.0.2", "wheel >= 0.29.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py37
+
+[testenv]
+setenv = PYTHONPATH = {toxinidir}
+deps =
+    pytest==6.0.1
+    pytest-asyncio==0.14.0
+    -rrequirements.txt
+commands = pytest
+"""
