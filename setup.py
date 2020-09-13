@@ -47,6 +47,7 @@ setup(
     author_email='cassandra-orm@jbcurtin.io',
     description=description,
     long_description=read('README.md'),
+    long_description_content_type='text/markdown',
     license='MIT',
     packages=find_packages(exclude=EXCLUDE_FROM_PACKAGES),
     include_package_data=True,
