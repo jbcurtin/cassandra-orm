@@ -60,7 +60,8 @@ def sync_schema() -> None:
 def insert(corm_objects: typing.List[typing.Any]) -> None:
     keyspace = corm_objects[0]._corm_details.keyspace
     table_name = corm_objects[0]._corm_details.table_name
-    field_names = corm_objects[0]._corm_details.field_names
+    field_names = corm_objects[0]._corm_details.field_names[:]
+    instance_type = corm_objects[0].__class__
     field_names.append('guid')
     formatted_field_names = ','.join(field_names)
     formatted_question_marks = ','.join(['?' for idx in range(0, len(field_names))])
@@ -68,6 +69,9 @@ def insert(corm_objects: typing.List[typing.Any]) -> None:
     prepared_statement = obtain_session(keyspace).prepare(CQL)
     cql_batch = BatchStatement()
     for corm_object in corm_objects:
+        if corm_object.__class__ != instance_type:
+            raise Exception('All corm_objects must be the same type')
+
         v_set = corm_object.values()
         v_set.append(corm_object.as_hash())
         cql_batch.add(prepared_statement, v_set)

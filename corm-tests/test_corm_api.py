@@ -1,5 +1,4 @@
-
-def test_whole_api():
+def test_initial_api():
     from corm import register_table, insert, sync_schema
     from corm.models import CORMBase
     
@@ -16,6 +15,24 @@ def test_whole_api():
     three = TestModel('one', 'three')
     insert([one, two, three])
     # TODO: Write Select logic
+
+def test_datetime_api():
+    from corm import register_table, insert, sync_schema
+    from corm.models import CORMBase
+
+    from datetime import datetime
+
+    class TestModelDatetime(CORMBase):
+        __keyspace__ = 'mykeyspace'
+
+        item: str
+        created: datetime
+
+    register_table(TestModelDatetime)
+    sync_schema()
+    one = TestModelDatetime('one', datetime.utcnow())
+    two = TestModelDatetime('two', datetime.utcnow())
+    insert([one, two])
 
 def test_set_api():
     from corm import register_table, insert, sync_schema
