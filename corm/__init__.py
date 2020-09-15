@@ -1,11 +1,12 @@
 import typing
 
-from corm.constants import CLUSTER_IPS, CLUSTER_PORT
+from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
 from corm.encoders import DT_MAP
+from corm.models import CORMBase
 from corm.datatypes import CORMDetails
 
 from cassandra.cluster import Cluster
-from cassandra.query import BatchStatement
+from cassandra.query import BatchStatement, SimpleStatement
 
 TABLES = {}
 SESSIONS = {}
@@ -77,3 +78,31 @@ def insert(corm_objects: typing.List[typing.Any]) -> None:
         cql_batch.add(prepared_statement, v_set)
 
     obtain_session(keyspace).execute(cql_batch)
+
+class select:
+    def __init__(self: PWN, table: CORMBase, field_names: typing.List[str] = [], fetch_size: int = 100) -> None:
+        self._table = table
+        self._field_names = field_names or table._corm_details.field_names
+
+        formatted_field_names = ','.join(self._field_names)
+        keyspace = self._table._corm_details.keyspace
+        table_name = self._table._corm_details.table_name
+        self._query = f'SELECT {formatted_field_names} FROM {keyspace}.{table_name}'
+        self._fetch_size = fetch_size
+        self._stmt = SimpleStatement(self._query, fetch_size=fetch_size)
+        self._iter = obtain_session(self._table._corm_details.keyspace).execute(self._stmt)
+        self._fetched = []
+        self._fetched.extend(self._iter.current_rows)
+
+    def __iter__(self: PWN) -> PWN:
+        return self
+
+    def __next__(self: PWN) -> typing.Any:
+        if len(self._fetched) < 1:
+            if self._iter.has_more_pages is False:
+                raise StopIteration
+
+            self._iter.fetch_next_page()
+            self._fetched.extend(self._iter.current_rows)
+
+        return self._fetched.pop()
