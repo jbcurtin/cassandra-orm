@@ -1,6 +1,6 @@
 # Cassondra ORM ( CORM )
 
-Cassandra ORM which uses Python annotations simular to the typing.NamedTuple API
+Cassandra ORM which uses Python annotations similar to the typing.NamedTuple API
 
 ## Install
 
