@@ -49,6 +49,23 @@ def test_keyspace_api():
     keyspace_destroy(keyspace_name)
     assert keyspace_exists(keyspace_name) is False
 
+def test_float_api():
+    from corm import register_table, insert, sync_schema, select
+    from corm.models import CORMBase
+
+    class TestModelFloat(CORMBase):
+        __keyspace__ = 'mykeyspace'
+
+        input_one: float
+
+    register_table(TestModelFloat)
+    sync_schema()
+    one = TestModelFloat(2.4)
+    insert([one])
+    for idx, entry in enumerate(select(TestModelFloat)):
+        assert entry.input_one == 2.4
+
+
 def test_boolean_api():
     from corm import register_table, insert, sync_schema
     from corm.models import CORMBase

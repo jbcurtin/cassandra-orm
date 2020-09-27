@@ -16,4 +16,5 @@ DT_MAP = {
     datetime: Transliterator('TIMESTAMP', datetime__python_to_cql, datetime__cql_to_python, True),
     Set: Transliterator('SET<text>', lambda x: [i for i in x], lambda x: x),
     bool: Transliterator('BOOLEAN', lambda x: x, lambda x: x),
+    float: Transliterator('DECIMAL', lambda x: x, lambda x: x),
 }
