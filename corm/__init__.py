@@ -4,7 +4,7 @@ import typing
 from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
 from corm.encoders import DT_MAP
 from corm.models import CORMBase
-from corm.datatypes import CORMDetails
+from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy
 
 from cassandra.cluster import Cluster
 from cassandra.query import BatchStatement, SimpleStatement
@@ -12,15 +12,46 @@ from cassandra.query import BatchStatement, SimpleStatement
 TABLES = {}
 SESSIONS = {}
 CLUSTER = Cluster(CLUSTER_IPS, port=CLUSTER_PORT)
+SESSIONS['global'] = CLUSTER.connect()
+RESERVED_KEYSPACE_NAMES = ['global']
 
 logger = logging.getLogger(__name__)
 
-def obtain_session(keyspace: str):
-    if keyspace in SESSIONS.keys():
-        return SESSIONS[keyspace]
+def obtain_session(keyspace_name: str) -> 'SESSIONS[keyspace_name]':
+    if keyspace_name in RESERVED_KEYSPACE_NAMES:
+        raise NotImplementedError(f'Unable to request Keyspace Name[{keyspace_name}]')
 
-    SESSIONS[keyspace] = CLUSTER.connect(keyspace)
-    return SESSIONS[keyspace]
+    if keyspace_name in SESSIONS.keys():
+        return SESSIONS[keyspace_name]
+
+    SESSIONS[keyspace_name] = CLUSTER.connect(keyspace_name)
+    return SESSIONS[keyspace_name]
+
+def keyspace_exists(keyspace_name: str) -> None:
+    CQL = f"""SELECT
+    keyspace_name,
+    durable_writes,
+    replication
+FROM system_schema.keyspaces
+WHERE keyspace_name = '{keyspace_name}';"""
+
+    rows = [row for row in SESSIONS['global'].execute(CQL)]
+    if len(rows) == 0:
+        return False
+
+    return True
+
+def keyspace_create(keyspace_name: str, strategy: CassandraKeyspaceStrategy) -> None:
+    if strategy is CassandraKeyspaceStrategy.Simple:
+        CQL = "CREATE KEYSPACE %s WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 3};" % keyspace_name
+    else:
+        raise NotImplementedError
+
+    SESSIONS['global'].execute(CQL)
+
+def keyspace_destroy(keyspace_name: str) -> None:
+    CQL = "DROP KEYSPACE IF EXISTS %s" % keyspace_name
+    SESSIONS['global'].execute(CQL)
 
 def register_table(table: typing.NamedTuple) -> None:
     keyspace = getattr(table, '__keyspace__', None)
@@ -58,8 +89,11 @@ def sync_schema() -> None:
         tables.append(table)
         keyspace_tables[table.keyspace] = tables
 
-    for keyspace_name, tables in keyspace_tables.items():
-        obtain_session(keyspace_name).execute(table.as_create_keyspace_cql())
+    for idx, (keyspace_name, tables) in enumerate(keyspace_tables.items()):
+        if idx == 0:
+            if keyspace_exists(keyspace_name) is False:
+                keyspace_create(keyspace_name, CassandraKeyspaceStrategy.Simple)
+
         session = obtain_session(keyspace_name)
         for table in tables:
             COLUMN_CQL = f'''

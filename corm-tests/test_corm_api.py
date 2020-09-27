@@ -1,3 +1,5 @@
+ENCODING = 'utf-8'
+
 def test_initial_api():
     from corm import register_table, insert, sync_schema
     from corm.models import CORMBase
@@ -14,6 +16,38 @@ def test_initial_api():
     two = TestModel('one', 'two')
     three = TestModel('one', 'three')
     insert([one, two, three])
+
+def test_keyspace_api():
+    import hashlib
+    import uuid
+
+    from corm import register_table, insert, sync_schema, \
+            keyspace_exists, keyspace_destroy, keyspace_create
+    from corm.datatypes import CassandraKeyspaceStrategy
+    from corm.models import CORMBase
+
+    # Keyspaces seem to have to start with Alpha-Letters
+    keyspace_name = hashlib.md5(str(uuid.uuid4()).encode(ENCODING)).hexdigest()
+    keyspace_name = f'abc_{keyspace_name}'
+    assert keyspace_exists(keyspace_name) is False
+    keyspace_create(keyspace_name, CassandraKeyspaceStrategy.Simple)
+    assert keyspace_exists(keyspace_name) is True
+    keyspace_destroy(keyspace_name)
+    assert keyspace_exists(keyspace_name) is False
+
+    class TestModelKeyspace(CORMBase):
+        __keyspace__ = keyspace_name
+
+        item: str
+
+    register_table(TestModelKeyspace)
+    assert keyspace_exists(keyspace_name) is False
+    sync_schema()
+    assert keyspace_exists(keyspace_name) is True
+    one = TestModelKeyspace('one')
+    insert([one])
+    keyspace_destroy(keyspace_name)
+    assert keyspace_exists(keyspace_name) is False
 
 def test_boolean_api():
     from corm import register_table, insert, sync_schema
