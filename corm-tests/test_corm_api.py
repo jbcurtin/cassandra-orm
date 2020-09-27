@@ -14,7 +14,25 @@ def test_initial_api():
     two = TestModel('one', 'two')
     three = TestModel('one', 'three')
     insert([one, two, three])
-    # TODO: Write Select logic
+
+def test_boolean_api():
+    from corm import register_table, insert, sync_schema
+    from corm.models import CORMBase
+
+    from datetime import datetime
+
+    class TestModelBoolean(CORMBase):
+        __keyspace__ = 'mykeyspace'
+
+        item: str
+        created: datetime
+        value: bool
+
+    register_table(TestModelBoolean)
+    sync_schema()
+    one = TestModelBoolean('one', datetime.utcnow(), True)
+    two = TestModelBoolean('two', datetime.utcnow(), False)
+    insert([one, two])
 
 def test_datetime_api():
     from corm import register_table, insert, sync_schema

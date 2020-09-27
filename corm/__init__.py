@@ -108,8 +108,6 @@ ALTER TABLE
 DROP ({formatted_column_names})
 '''
                 obtain_session(keyspace_name).execute(ALTER_CQL)
-                import pdb; pdb.set_trace()
-                pass
 
 def insert(corm_objects: typing.List[typing.Any]) -> None:
     keyspace = corm_objects[0]._corm_details.keyspace
