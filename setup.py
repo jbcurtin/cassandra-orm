@@ -29,7 +29,7 @@ version of Python
 
 
 EXCLUDE_FROM_PACKAGES = []
-version = '0.0.8'
+version = '0.0.9'
 
 INSTALL_REQUIRES = ['cassandra-driver==3.24.0']
 description = 'Cassandra ORM which uses Python annotations simular to the typing.NamedTuple API'

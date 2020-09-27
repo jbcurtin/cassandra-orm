@@ -122,16 +122,24 @@ def test_select_api():
     register_table(TestModelSelect)
     sync_schema()
     insert_later = []
+    values = []
     for idx in range(0, 100):
-        entry = TestModelSelect(random.randint(0, MAX_INT), datetime.utcnow())
+        values.append({
+            'random_number': random.randint(0, MAX_INT),
+            'created': datetime.utcnow()
+        })
+        entry = TestModelSelect(values[-1]['random_number'], values[-1]['created'])
         insert_later.append(entry)
         if len(insert_later) > 20:
             insert(insert_later)
             insert_later = []
 
     insert(insert_later)
-    for idx, item in enumerate(select(TestModelSelect, fetch_size=100)):
-        pass
+    for idx, entry in enumerate(select(TestModelSelect, fetch_size=100)):
+        assert isinstance(entry, TestModelSelect)
+        # Order is not consistent
+        # assert entry.random_number == values[idx]['random_number']
+        # assert entry.created == values[idx]['created']
 
     assert idx > 0
 

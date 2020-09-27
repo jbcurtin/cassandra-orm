@@ -182,7 +182,7 @@ class select:
     def __iter__(self: PWN) -> PWN:
         return self
 
-    def __next__(self: PWN) -> typing.Any:
+    def __next__(self: PWN) -> CORMBase:
         if len(self._fetched) < 1:
             if self._iter.has_more_pages is False:
                 raise StopIteration
@@ -190,4 +190,9 @@ class select:
             self._iter.fetch_next_page()
             self._fetched.extend(self._iter.current_rows)
 
-        return self._fetched.pop()
+        next_object = self._fetched.pop()
+        values = []
+        for field_name, field_type in self._table.__annotations__.items():
+            values.append(getattr(next_object, field_name, None))
+
+        return self._table(*values)
