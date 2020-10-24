@@ -4,7 +4,7 @@ import typing
 from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
 from corm.encoders import DT_MAP
 from corm.models import CORMBase
-from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy
+from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy, TableOrdering
 
 from cassandra.cluster import Cluster
 from cassandra.query import BatchStatement, SimpleStatement
@@ -53,6 +53,12 @@ def keyspace_destroy(keyspace_name: str) -> None:
     CQL = "DROP KEYSPACE IF EXISTS %s" % keyspace_name
     SESSIONS['global'].execute(CQL)
 
+def annihilate_keyspace_tables(keyspace_name: str) -> None:
+    FIND_TABLES_CQL = "SELECT table_name FROM system_schema.tables;"
+    for row in SESSIONS['global'].execute(FIND_TABLES_CQL):
+        cql = f'DROP TABLE IF EXISTS {keyspace_name}.{row.table_name};'
+        SESSIONS['global'].execute(cql)
+
 def register_table(table: typing.NamedTuple) -> None:
     keyspace = getattr(table, '__keyspace__', None)
     if keyspace is None:
@@ -64,17 +70,21 @@ def register_table(table: typing.NamedTuple) -> None:
         field_names.append(field_name)
         field_transliterators.append(DT_MAP[annotation])
 
-    pk_fields = getattr(table, 'primary_key', None) or field_names[:]
+    pk_fields = getattr(table, '__primary_keys__', [])[:] or field_names[:]
     for pk_field in pk_fields:
         if not pk_field in field_names:
             raise NotImplementedError(f'Field[{pk_field}] not in Table[{table.__class__}]')
+
+    ordered_by_primary_keys = getattr(table, '__ordered_by_primary_keys__', TableOrdering.Nope)
+    assert ordered_by_primary_keys.__class__ is TableOrdering, 'Invalid Datatype. Using corm.datatypes.TableOrdering object'
 
     corm_details = CORMDetails(
         table.__keyspace__,
         table.__name__.lower(),
         field_names,
         field_transliterators,
-        pk_fields)
+        pk_fields,
+        ordered_by_primary_keys)
 
     TABLES[corm_details.table_name] = corm_details
     table._corm_details = corm_details

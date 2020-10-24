@@ -1,4 +1,14 @@
+import pytest
+
 ENCODING = 'utf-8'
+
+@pytest.fixture(scope='function', autouse=True)
+def setup_case(request):
+    def destroy_case():
+        from corm import annihilate_keyspace_tables
+        annihilate_keyspace_tables('mykeyspace')
+
+    request.addfinalizer(destroy_case)
 
 def test_initial_api():
     from corm import register_table, insert, sync_schema
@@ -60,10 +70,11 @@ def test_float_api():
 
     register_table(TestModelFloat)
     sync_schema()
-    one = TestModelFloat(2.4)
+    data = 324.593998934
+    one = TestModelFloat(data)
     insert([one])
     for idx, entry in enumerate(select(TestModelFloat)):
-        assert entry.input_one == 2.4
+        assert entry.input_one == data
 
 
 def test_boolean_api():
@@ -201,3 +212,73 @@ AND
 
     rows = [(row.column_name, row.type) for row in obtain_session('mykeyspace').execute(COL_CQL)]
     assert len(rows) == 4
+
+def test_not_ordered_by_pk_field():
+    import random
+
+    from corm import register_table, insert, sync_schema, select, obtain_session
+    from corm.models import CORMBase
+    from datetime import datetime
+
+    class TestNotOrderedByPkField(CORMBase):
+        __keyspace__ = 'mykeyspace'
+        __primary_keys__ = ['one', 'two', 'three']
+
+        random_number: int
+        created: datetime
+        one: str
+        two: str
+        three: str
+
+    register_table(TestNotOrderedByPkField)
+    sync_schema()
+
+    first_entry = TestNotOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'beta')
+    gamma = TestNotOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'gamma')
+    delta = TestNotOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'delta')
+    second_entry = TestNotOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'alpha')
+    insert([first_entry, gamma, delta, second_entry])
+    for idx, entry in enumerate(select(TestNotOrderedByPkField)):
+        if idx == 0:
+            assert entry.three != 'alpha'
+
+def test_ordered_by_pk_field():
+    import random
+
+    from corm import register_table, insert, sync_schema, select, obtain_session
+    from corm.models import CORMBase
+    from corm.datatypes import TableOrdering
+    from datetime import datetime
+
+    class TestOrderedByPkField(CORMBase):
+        __keyspace__ = 'mykeyspace'
+        __primary_keys__ = ['one', 'two', 'three']
+        __ordered_by_primary_keys__ = TableOrdering.DESC
+        __ordered_field_name__ = 'created'
+
+        random_number: int
+        created: datetime
+        one: str
+        two: str
+        three: str
+
+    register_table(TestOrderedByPkField)
+    sync_schema()
+
+    first_entry = TestOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'beta')
+    second_entry = TestOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'alpha')
+    gamma = TestOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'gamma')
+    delta = TestOrderedByPkField(random.randint(0, 99999), datetime.utcnow(), 'one', 'one', 'delta')
+    insert([first_entry, second_entry, delta, gamma])
+    for idx, entry in enumerate(select(TestOrderedByPkField)):
+        if idx == 0:
+            assert entry.three == 'alpha'
+
+        elif idx == 1:
+            assert entry.three == 'beta'
+
+        elif idx == 2:
+            assert entry.three == 'delta'
+
+        elif idx == 3:
+            assert entry.three == 'gamma'
