@@ -1,5 +1,3 @@
-
-
 release:
 	pip install -U twine
 	pip install -U setuptools

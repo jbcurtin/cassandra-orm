@@ -171,6 +171,34 @@ def test_select_api():
 
     assert idx > 0
 
+def test_select_where_api():
+    import random
+
+    from corm import register_table, insert, sync_schema, select, where
+    from corm.models import CORMBase
+    from datetime import datetime
+
+    MAX_INT = 99999
+    class TestModelSelectSource(CORMBase):
+        __keyspace__ = 'mykeyspace'
+
+        random_number: int
+        created: datetime
+        one: str
+        two: str
+
+    class TestModelSelectPivot(CORMBase):
+        __keyspace__ = 'mykeyspace'
+
+        random_number: int
+        created: datetime
+        one: str
+        two: str
+        source: TestModelSelectSource
+
+    register_table(TestModelSelectSource)
+    register_table(TestModelSelectPivot)
+
 def test_alter_table_api():
     from corm import register_table, insert, sync_schema, select, obtain_session
     from corm.models import CORMBase
@@ -254,7 +282,6 @@ def test_ordered_by_pk_field():
         __keyspace__ = 'mykeyspace'
         __primary_keys__ = ['one', 'two', 'three']
         __ordered_by_primary_keys__ = TableOrdering.DESC
-        __ordered_field_name__ = 'created'
 
         random_number: int
         created: datetime

@@ -54,7 +54,7 @@ def keyspace_destroy(keyspace_name: str) -> None:
     SESSIONS['global'].execute(CQL)
 
 def annihilate_keyspace_tables(keyspace_name: str) -> None:
-    FIND_TABLES_CQL = "SELECT table_name FROM system_schema.tables;"
+    FIND_TABLES_CQL = "SELECT table_name FROM system_schema.tables WHERE keyspace_name='{keyspace_name}';"
     for row in SESSIONS['global'].execute(FIND_TABLES_CQL):
         cql = f'DROP TABLE IF EXISTS {keyspace_name}.{row.table_name};'
         SESSIONS['global'].execute(cql)

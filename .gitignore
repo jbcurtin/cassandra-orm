@@ -13,3 +13,8 @@ env-docs
 env-test
 env
 env-release
+
+bin
+lib
+lib64
+pyvenv.cfg
