@@ -29,7 +29,7 @@ version of Python
 
 
 EXCLUDE_FROM_PACKAGES = []
-version = '0.0.12'
+version = '0.0.13'
 
 INSTALL_REQUIRES = ['cassandra-driver==3.24.0']
 description = 'Cassandra ORM which uses Python annotations simular to the typing.NamedTuple API'
@@ -53,7 +53,11 @@ setup(
     include_package_data=True,
     scripts=[],
     install_requires=INSTALL_REQUIRES,
-    entry_points={},
+    entry_points={
+        'console_scripts': [
+            'corm-etl = corm.etl.factory:run_from_cli',
+        ],
+    },
     zip_safe=False,
     classifiers=[
     'Operating System :: OS Independent',

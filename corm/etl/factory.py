@@ -3,7 +3,9 @@
 import argparse
 import enum
 import logging
+import os
 import importlib
+import sys
 
 from corm import register_table
 from corm.etl.utils import generate_sqlalchemy_metadata, generate_sqlalchemy_table, sync_sqlalchemy_schema, migrate_data_to_sqlalchemy_table
@@ -34,5 +36,6 @@ def main() -> None:
         logger.info(f'Migrating Table {corm_table._corm_details.table_name} to PostgreSQL')
         migrate_data_to_sqlalchemy_table(corm_table, sql_table)
 
-if __name__ == '__main__':
+def run_from_cli():
+    sys.path.append(os.getcwd())
     main()
