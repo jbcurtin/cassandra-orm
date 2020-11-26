@@ -2,6 +2,7 @@ import logging
 import typing
 
 from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
+from corm.auth import AuthProvider
 from corm.encoders import DT_MAP
 from corm.models import CORMBase
 from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy, TableOrdering
@@ -11,7 +12,11 @@ from cassandra.query import BatchStatement, SimpleStatement
 
 TABLES = {}
 SESSIONS = {}
-CLUSTER = Cluster(CLUSTER_IPS, port=CLUSTER_PORT)
+if AuthProvider:
+    CLUSTER = Cluster(CLUSTER_IPS, port=CLUSTER_PORT, auth_provider=AuthProvider)
+else:
+    CLUSTER = Cluster(CLUSTER_IPS, port=CLUSTER_PORT)
+
 SESSIONS['global'] = CLUSTER.connect()
 RESERVED_KEYSPACE_NAMES = ['global']
 

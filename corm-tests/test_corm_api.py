@@ -309,3 +309,19 @@ def test_ordered_by_pk_field():
 
         elif idx == 3:
             assert entry.three == 'gamma'
+
+def test_corm_auth():
+    import os
+    os.environ['CLUSTER_PORT'] = '9043'
+    os.environ['CLUSTER_USERNAME'] = 'cassandra'
+    os.environ['CLUSTER_PASSWORD'] = 'cassandra'
+
+    from corm import register_table, insert, sync_schema
+    from corm.models import CORMBase
+
+    class TestCORMAuth(CORMBase):
+        one: str
+        __keyspace__ = 'test_corm_auth'
+
+    register_table(TestCORMAuth)
+    sync_schema()
