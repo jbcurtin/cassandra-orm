@@ -8,8 +8,6 @@ import types
 import typing
 
 from corm.constants import PWN, CLUSTER_IPS, ENCODING
-from corm.etl.constants import POSTGRESQL_URI, CASSANDRA_CONTAINER_NAME, POSTRGESQL_CONTAINER_NAME, \
-        ETL_CLUSTER_URIS
 from corm.etl.datatypes import ConnectionInfo
 from corm.etl.helpers import run_command, container_ipaddress
 from corm.models import CORMBase
@@ -63,8 +61,8 @@ def obtain_sqlalchemy_session(uri: str) -> Engine:
 
     return PSQL_SESSIONS[uri]
 
-def generate_sqlalchemy_metadata() -> MetaData:
-    return MetaData(bind=obtain_sqlalchemy_session(POSTGRESQL_URI).connection)
+def generate_sqlalchemy_metadata(psql_info: ConnectionInfo) -> MetaData:
+    return MetaData(bind=obtain_sqlalchemy_session(psql_info.as_uri()).connection)
 
 def generate_sqlalchemy_table(table: CORMBase, metadata: MetaData) -> Table:
     sql_alchemy_types = {}
@@ -100,34 +98,16 @@ def export_to_csv(table: CORMBase, filepath: str, info: ConnectionInfo) -> None:
     logger.info(f'Exporting Table[{table._corm_details.table_name}] from {info.host}')
     run_command(export_cmd)
 
-def migrate_data_to_sqlalchemy_table(corm_table: CORMBase, sql_table: Table) -> None:
-    cassandra_ipaddress = container_ipaddress(CASSANDRA_CONTAINER_NAME)
-    psql_ipaddress = container_ipaddress(POSTRGESQL_CONTAINER_NAME)
-
+def migrate_data_to_sqlalchemy_table(corm_table: CORMBase, sql_table: Table, cassandra_info: ConnectionInfo, psql_info: ConnectionInfo) -> None:
     # Export data from Cassandra
-    field_names = corm_table._corm_details.field_names[:]
-    field_names.append('guid')
-    formatted_field_names = ','.join(field_names)
-    CQL_EXPORT = f"""COPY {corm_table._corm_details.keyspace}.{corm_table._corm_details.table_name} ({formatted_field_names}) TO STDOUT WITH HEADER=True AND QUOTE=\'*\' AND ESCAPE=\'*\' """
-    CQL_BIN_CMD = f'docker run --rm cassandra cqlsh {cassandra_ipaddress} 9042'
     csv_filepath = tempfile.NamedTemporaryFile().name
-    export_cmd = f'{CQL_BIN_CMD} -e "{CQL_EXPORT}" > {csv_filepath}'
-    logger.info(f'Exporting Data from {CASSANDRA_CONTAINER_NAME}')
-    run_command(export_cmd)
+    export_to_csv(corm_table, csv_filepath, cassandra_info)
 
-    # Import data into PostgreSQL
+    # # Import data into PostgreSQL
     column_names = [col.name for col in sql_table.columns]
     formatted_columns = ','.join(column_names)
     SQL_IMPORT = f"""COPY {sql_table.name} ({formatted_columns}) FROM STDIN DELIMITER ',' CSV HEADER QUOTE AS \'*\' ESCAPE AS \'*\' """
-    postgresql_info = ConnectionInfo.From_URI(POSTGRESQL_URI)
-    PSQL_BIN_CMD = f'docker run -i -e PGPASSWORD="{postgresql_info.password}" --rm postgres psql -h {psql_ipaddress} -U {postgresql_info.username} {postgresql_info.name}'
+    PSQL_BIN_CMD = f'docker run -i -e PGPASSWORD="{psql_info.password}" --rm postgres psql -h {psql_info.host} -U {psql_info.username} {psql_info.name}'
     import_cmd = f'{PSQL_BIN_CMD} -c "{SQL_IMPORT}" < {csv_filepath}'
-    logger.info(f'Importing data into {CASSANDRA_CONTAINER_NAME}')
+    logger.info(f'Importing Table[{corm_table._corm_details.table_name}] into {psql_info.host}')
     run_command(import_cmd)
-
-def rationalize_docker_containers(ip_address: str) -> str:
-    if ip_address in ['127.0.0.1', 'localhost']:
-        import pdb; pdb.set_trace()
-        pass
-
-    return ip_address

@@ -1,4 +1,5 @@
 import _io
+import enum
 import subprocess
 import sys
 import tempfile
@@ -7,8 +8,22 @@ import types
 import typing
 
 from corm.constants import ENCODING, CLUSTER_PORT
+from corm.etl.constants import PSQL_CLUSTER_PORT
 
-def rationalize_docker_containers(ip_address: str) -> str:
+class DBEngine(enum.Enum):
+    PostgreSQL = ['postgres', 'postgresql', 'psql']
+    Cassandra = ['cassandra']
+
+def rationalize_docker_containers(ip_address: str, engine: DBEngine) -> str:
+    if engine is DBEngine.PostgreSQL:
+        cluster_port = PSQL_CLUSTER_PORT
+
+    elif engine is DBEngine.Cassandra:
+        cluster_port = CLUSTER_PORT
+
+    else:
+        raise NotImplementedError(engine)
+
     docker_hash = None
     if ip_address in ['127.0.0.1', 'localhost']:
         list_container_ips_cmd = 'docker container ls --format "table {{.ID}}: {{.Ports}}" -a'
@@ -18,7 +33,7 @@ def rationalize_docker_containers(ip_address: str) -> str:
             container_ips = [ip.strip() for ip in stream.read().decode(ENCODING).split('\n') if ip]
 
         for entry in container_ips:
-            match_label = f'0.0.0.0:{CLUSTER_PORT}->{CLUSTER_PORT}'
+            match_label = f'0.0.0.0:{cluster_port}->{cluster_port}'
             if match_label in entry:
                 docker_hash = entry.split(':', 1)[0]
                 break

@@ -8,7 +8,10 @@ import importlib
 import sys
 
 from corm import register_table
-from corm.etl.utils import generate_sqlalchemy_metadata, generate_sqlalchemy_table, sync_sqlalchemy_schema, migrate_data_to_sqlalchemy_table
+from corm.constants import CLUSTER_IPS, CLUSTER_PORT
+from corm.etl.constants import PSQL_URI
+from corm.etl.utils import generate_sqlalchemy_metadata, generate_sqlalchemy_table, sync_sqlalchemy_schema, \
+        migrate_data_to_sqlalchemy_table, ConnectionInfo, export_to_csv
 
 logger = logging.getLogger('')
 sysHandler = logging.StreamHandler()
@@ -35,10 +38,17 @@ def obtain_options() -> argparse.Namespace:
 def main() -> None:
     options = obtain_options()
     if options.mode is Mode.CassandraToPostgreSQL:
+        from corm import register_table
+        from corm.etl.factory_testing.utils import load_table
+
+        cassandra_uri = f'cassandra://{CLUSTER_IPS[0]}:{CLUSTER_PORT}/'
+        cassandra_info = ConnectionInfo.From_URI(cassandra_uri)
+        psql_info = ConnectionInfo.From_URI(PSQL_URI)
+
         paired_tables = []
-        sql_metadata = generate_sqlalchemy_metadata()
+        sql_metadata = generate_sqlalchemy_metadata(psql_info)
         for table_path in options.tables:
-            load_table(table_path)
+            corm_table = load_table(table_path)
             register_table(corm_table)
             sql_table = generate_sqlalchemy_table(corm_table, sql_metadata)
             paired_tables.append((corm_table, sql_table))
@@ -46,16 +56,14 @@ def main() -> None:
         sync_sqlalchemy_schema(sql_metadata)
         for corm_table, sql_table in paired_tables:
             logger.info(f'Migrating Table {corm_table._corm_details.table_name} to PostgreSQL')
-            migrate_data_to_sqlalchemy_table(corm_table, sql_table)
+            migrate_data_to_sqlalchemy_table(corm_table, sql_table, cassandra_info, psql_info)
 
     elif options.mode is Mode.CassandraToCSV:
         import tempfile
 
         from corm import register_table
-        from corm.constants import CLUSTER_IPS, CLUSTER_PORT 
         from corm.etl.constants import CORM_EXPORT_DIR
         from corm.etl.factory_testing.utils import load_table
-        from corm.etl.utils import ConnectionInfo, export_to_csv
 
         for ip_address in CLUSTER_IPS:
             conn_info = ConnectionInfo.From_URI(f'cassandra://{ip_address}:{CLUSTER_PORT}/')
