@@ -8,6 +8,7 @@ class CassandraKeyspaceStrategy(enum.Enum):
     Simple: str = 'SimpleStrategy'
 
 class Transliterator(typing.NamedTuple):
+    python_type: typing.Any
     cql_type: str
     python_to_cql: types.FunctionType
     cql_to_python: types.FunctionType

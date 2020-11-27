@@ -1,12 +1,17 @@
+import _io
 import logging
 import subprocess
 import sys
 import tempfile
 import time
+import types
 import typing
 
 from corm.constants import PWN, CLUSTER_IPS, ENCODING
-from corm.etl.constants import POSTGRESQL_URI, POSTGRESQL_INFO, CASSANDRA_CONTAINER_NAME, POSTRGESQL_CONTAINER_NAME
+from corm.etl.constants import POSTGRESQL_URI, CASSANDRA_CONTAINER_NAME, POSTRGESQL_CONTAINER_NAME, \
+        ETL_CLUSTER_URIS
+from corm.etl.datatypes import ConnectionInfo
+from corm.etl.helpers import run_command, container_ipaddress
 from corm.models import CORMBase
 from corm.annotations import Set
 
@@ -78,36 +83,22 @@ def generate_sqlalchemy_table(table: CORMBase, metadata: MetaData) -> Table:
 def sync_sqlalchemy_schema(sql_metadata: MetaData) -> None:
     sql_metadata.create_all()
 
-def run_command(cmd: typing.Union[str, typing.List[str]], shell: bool = True, stdout_filepath: str = None, throw_error: bool = True) -> None:
-    if isinstance(cmd, str):
-        cmd = [cmd]
+def cluster_uris_to_parts(uris: typing.List[str]) -> types.GeneratorType:
+    for uri in uris:
+        yield ConnectionInfo.From_URI(uri)
 
-    stdout_filepath = stdout_filepath or subprocess.PIPE
-    proc = subprocess.Popen(cmd, shell=shell, stdout=stdout_filepath, stderr=subprocess.PIPE)
+def _corm_table_to_cql_export(table: CORMBase) -> str:
+    field_names = table._corm_details.field_names[:]
+    field_names.append('guid')
+    formatted_field_names = ','.join(field_names)
+    return f"""COPY {table._corm_details.keyspace}.{table._corm_details.table_name} ({formatted_field_names}) TO STDOUT WITH HEADER=True AND QUOTE=\'*\' AND ESCAPE=\'*\' """
 
-    while proc.poll() is None:
-        time.sleep(.1)
-
-    if proc.poll() > 0:
-        sys.stderr.write(f'Exit Code Error[{proc.poll()}]')
-        sys.stderr.write(proc.stderr.read().decode(ENCODING))
-        if throw_error:
-            raise OSError(proc.poll())
-
-    if proc.stdout:
-        sys.stdout.write(proc.stdout.read().decode(ENCODING))
-
-def container_ipaddress(container_name: str, container_network: str = 'bridge') -> str:
-    cmd = f'docker inspect {container_name}|jq -r ".[0].NetworkSettings.Networks.{container_network}.IPAddress"'
-    output_filepath = tempfile.NamedTemporaryFile().name
-    with open(output_filepath, 'wb') as stream:
-        run_command(cmd, True, stream)
-
-    with open(output_filepath, 'rb') as stream:
-        value = stream.read().decode(ENCODING).strip('\n ')
-        if value == 'null':
-            raise NotImplementedError(f"Container doesn't exist: {container_name}")
-        return value
+def export_to_csv(table: CORMBase, filepath: str, info: ConnectionInfo) -> None:
+    cql_export = _corm_table_to_cql_export(table)
+    cql_bin_cmd = f'docker run --rm library/cassandra cqlsh {info.host} {info.port}'
+    export_cmd = f'{cql_bin_cmd} -e "{cql_export}" > {filepath}'
+    logger.info(f'Exporting Table[{table._corm_details.table_name}] from {info.host}')
+    run_command(export_cmd)
 
 def migrate_data_to_sqlalchemy_table(corm_table: CORMBase, sql_table: Table) -> None:
     cassandra_ipaddress = container_ipaddress(CASSANDRA_CONTAINER_NAME)
@@ -128,7 +119,15 @@ def migrate_data_to_sqlalchemy_table(corm_table: CORMBase, sql_table: Table) -> 
     column_names = [col.name for col in sql_table.columns]
     formatted_columns = ','.join(column_names)
     SQL_IMPORT = f"""COPY {sql_table.name} ({formatted_columns}) FROM STDIN DELIMITER ',' CSV HEADER QUOTE AS \'*\' ESCAPE AS \'*\' """
-    PSQL_BIN_CMD = f'docker run -i -e PGPASSWORD="{POSTGRESQL_INFO.password}" --rm postgres psql -h {psql_ipaddress} -U {POSTGRESQL_INFO.username} {POSTGRESQL_INFO.name}'
+    postgresql_info = ConnectionInfo.From_URI(POSTGRESQL_URI)
+    PSQL_BIN_CMD = f'docker run -i -e PGPASSWORD="{postgresql_info.password}" --rm postgres psql -h {psql_ipaddress} -U {postgresql_info.username} {postgresql_info.name}'
     import_cmd = f'{PSQL_BIN_CMD} -c "{SQL_IMPORT}" < {csv_filepath}'
     logger.info(f'Importing data into {CASSANDRA_CONTAINER_NAME}')
     run_command(import_cmd)
+
+def rationalize_docker_containers(ip_address: str) -> str:
+    if ip_address in ['127.0.0.1', 'localhost']:
+        import pdb; pdb.set_trace()
+        pass
+
+    return ip_address

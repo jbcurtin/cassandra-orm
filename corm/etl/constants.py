@@ -1,8 +1,7 @@
 import os
 
-from corm.etl.datatypes import ConnectionInfo
-
+ETL_CLUSTER_URIS = [uri.strip() for uri in os.environ.get('ETL_CLUSTER_URIS', '').split(',') if uri]
 POSTGRESQL_URI = os.environ.get('POSTGRESQL_URI', None)
-POSTGRESQL_INFO = ConnectionInfo.From_URI(POSTGRESQL_URI)
 CASSANDRA_CONTAINER_NAME = os.environ.get('CASSANDRA_CONTAINER_NAME', None)
 POSTRGESQL_CONTAINER_NAME = os.environ.get('POSTGRESQL_CONTAINER_NAME', None)
+CORM_EXPORT_DIR = '/tmp/corm-exports'
