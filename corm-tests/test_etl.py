@@ -20,6 +20,8 @@ def setup_case(request):
 def test__generate_sql_alchemy_table():
     from corm import register_table, insert, sync_schema
     from corm.models import CORMBase
+    from corm.etl.constants import PSQL_URI
+    from corm.etl.datatypes import ConnectionInfo
     from corm.etl.utils import generate_sqlalchemy_metadata, generate_sqlalchemy_table
 
     from datetime import datetime
@@ -36,7 +38,8 @@ def test__generate_sql_alchemy_table():
         bool_column: bool
         timestamp_column: datetime
 
-    sql_metadata = generate_sqlalchemy_metadata()
+    psql_info = ConnectionInfo.From_URI(PSQL_URI)
+    sql_metadata = generate_sqlalchemy_metadata(psql_info)
     sql_alchemy_table = generate_sqlalchemy_table(TestModelDBInspect, sql_metadata)
     assert sql_alchemy_table.columns['str_column'].type.__class__ is String
     assert sql_alchemy_table.columns['str_column'].type.length == 1024
@@ -58,7 +61,7 @@ def test__generate_sql_alchemy_table():
     assert sql_alchemy_table.columns['timestamp_column'].type.__class__ is DateTime
     assert sql_alchemy_table.columns['timestamp_column'].name == 'timestamp_column'
 
-    assert sql_alchemy_table.name == TestModelDBInspect.__name__
+    assert sql_alchemy_table.name == TestModelDBInspect.__name__.lower()
 
 def test__convert_data_to_postgresql():
     import tempfile
@@ -95,63 +98,26 @@ def test__convert_data_to_postgresql():
     if insert_later:
         insert(insert_later)
 
+    from corm.constants import CLUSTER_IPS, CLUSTER_PORT
+    from corm.etl.constants import PSQL_URI
+    from corm.etl.datatypes import ConnectionInfo
     from corm.etl.utils import generate_sqlalchemy_metadata, generate_sqlalchemy_table, \
             sync_sqlalchemy_schema, migrate_data_to_sqlalchemy_table
 
-    sql_metadata = generate_sqlalchemy_metadata()
+    cassandra_uri = f'cassandra://{CLUSTER_IPS[0]}:{CLUSTER_PORT}/'
+    cassandra_info = ConnectionInfo.From_URI(cassandra_uri)
+    psql_info = ConnectionInfo.From_URI(PSQL_URI)
+    sql_metadata = generate_sqlalchemy_metadata(psql_info)
     sql_table = generate_sqlalchemy_table(TestModelToPostgreSQL, sql_metadata)
     sync_sqlalchemy_schema(sql_metadata)
-    migrate_data_to_sqlalchemy_table(TestModelToPostgreSQL, sql_table)
+    migrate_data_to_sqlalchemy_table(TestModelToPostgreSQL, sql_table, cassandra_info, psql_info)
 
-def test__cluster_uris_to_parts():
-    from corm.etl.datatypes import ConnectionInfo, DBEngine
-    from corm.etl.utils import cluster_uris_to_parts
-
-    uris = [
-        'cassandra://127.0.0.1:9042',
-        'cassandra://127.0.0.1:9042/mykeyspace',
-        'cassandra://username:@127.0.0.1:9042/mykeyspace',
-        'cassandra://username:password@127.0.0.1:9042/mykeyspace',
-    ]
-    for idx, conn_info in enumerate(cluster_uris_to_parts(uris)):
-        uri = uris[idx]
-        assert conn_info.__class__ is ConnectionInfo
-        if idx == 0:
-            assert conn_info.engine is DBEngine.Cassandra
-            assert conn_info.username is None
-            assert conn_info.password is None
-            assert conn_info.name == None
-            assert conn_info.port == 9042
-            assert conn_info.host == '127.0.0.1'
-        elif idx == 1:
-            assert conn_info.engine is DBEngine.Cassandra
-            assert conn_info.username is None
-            assert conn_info.password is None
-            assert conn_info.name == 'mykeyspace'
-            assert conn_info.port == 9042
-            assert conn_info.host == '127.0.0.1'
-        elif idx == 2:
-            assert conn_info.engine is DBEngine.Cassandra
-            assert conn_info.username == 'username'
-            assert conn_info.password is None
-            assert conn_info.name == 'mykeyspace'
-            assert conn_info.port == 9042
-            assert conn_info.host == '127.0.0.1'
-        elif idx == 3:
-            assert conn_info.engine is DBEngine.Cassandra
-            assert conn_info.username == 'username'
-            assert conn_info.password == 'password'
-            assert conn_info.name == 'mykeyspace'
-            assert conn_info.port == 9042
-            assert conn_info.host == '127.0.0.1'
-        
 def test__export_to_csv_from_uri():
     import os
     import tempfile
 
     from corm import register_table, insert, sync_schema
-    from corm.constants import ENCODING
-    from corm.etl.constants import CASSANDRA_CONTAINER_NAME
+    from corm.constants import ENCODING, CLUSTER_IPS, CLUSTER_PORT
     from corm.etl.datatypes import ConnectionInfo
     from corm.etl.utils import export_to_csv, run_command, container_ipaddress
     from corm.models import CORMBase
@@ -169,10 +135,10 @@ def test__export_to_csv_from_uri():
         instance = TestModelToCSV(generate_string(10), random.uniform(0, 1))
         insert([instance])
 
-    cassandra_ip = container_ipaddress(CASSANDRA_CONTAINER_NAME)
-    filepath = tempfile.NamedTemporaryFile().name
-    conn_info = ConnectionInfo.From_URI(f'cassandra://{cassandra_ip}:9042')
-    assert not os.path.exists(filepath) or os.stat(filepath).st_size == 0
-    export_to_csv(TestModelToCSV, filepath, conn_info)
-    assert os.stat(filepath).st_size > 0
-    os.remove(filepath)
+    cassandra_uri = f'cassandra://{CLUSTER_IPS[0]}:{CLUSTER_PORT}'
+    conn_info = ConnectionInfo.From_URI(cassandra_uri)
+    csv_filepath = tempfile.NamedTemporaryFile().name
+    assert not os.path.exists(csv_filepath) or os.stat(csv_filepath).st_size == 0
+    export_to_csv(TestModelToCSV, csv_filepath, conn_info)
+    assert os.stat(csv_filepath).st_size > 0
+    os.remove(csv_filepath)

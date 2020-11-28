@@ -22,14 +22,23 @@ RESERVED_KEYSPACE_NAMES = ['global']
 
 logger = logging.getLogger(__name__)
 
-def obtain_session(keyspace_name: str) -> 'SESSIONS[keyspace_name]':
+def obtain_session(keyspace_name: str, auto_create_keyspace: bool = False) -> 'SESSIONS[keyspace_name]':
     if keyspace_name in RESERVED_KEYSPACE_NAMES:
         raise NotImplementedError(f'Unable to request Keyspace Name[{keyspace_name}]')
 
     if keyspace_name in SESSIONS.keys():
         return SESSIONS[keyspace_name]
 
-    SESSIONS[keyspace_name] = CLUSTER.connect(keyspace_name)
+    try:
+        SESSIONS[keyspace_name] = CLUSTER.connect(keyspace_name)
+    except Exception as err:
+        if auto_create_keyspace:
+            keyspace_create(keyspace_name, CassandraKeyspaceStrategy.Simple)
+            SESSIONS[keyspace_name] = CLUSTER.connect(keyspace_name)
+
+        else:
+            raise err
+
     return SESSIONS[keyspace_name]
 
 def keyspace_exists(keyspace_name: str) -> None:
@@ -109,7 +118,7 @@ def sync_schema() -> None:
             if keyspace_exists(keyspace_name) is False:
                 keyspace_create(keyspace_name, CassandraKeyspaceStrategy.Simple)
 
-        session = obtain_session(keyspace_name)
+        session = obtain_session(keyspace_name, True)
         for table in tables:
             COLUMN_CQL = f'''
             SELECT
@@ -120,10 +129,11 @@ def sync_schema() -> None:
                 AND keyspace_name = ?'''
             stmt = obtain_session(keyspace_name).prepare(COLUMN_CQL)
             existing_columns = {r.column_name: r.type for r in obtain_session(keyspace_name).execute(stmt, [table.table_name, keyspace_name])}
+
             # Add Whole Table
             if len(existing_columns.keys()) == 0:
-                logger.info(f'Creating Table[{table.table_name}]')
-                obtain_session(keyspace_name).execute(table.as_create_table_cql())
+                logger.info(f'Creating Table[{table.table_name}] in Keyspace[{table.keyspace}]')
+                session.execute(table.as_create_table_cql())
 
             # Add Columns
             elif len(table.field_names) > len(existing_columns.keys()) - 1:
@@ -211,3 +221,7 @@ class select:
             values.append(getattr(next_object, field_name, None))
 
         return self._table(*values)
+
+class where:
+    def __init__(self: PWN) -> None:
+        raise NotImplementedError

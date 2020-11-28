@@ -5,8 +5,15 @@ ENCODING = 'utf-8'
 @pytest.fixture(scope='function', autouse=True)
 def setup_case(request):
     def destroy_case():
-        from corm import annihilate_keyspace_tables
+        from corm import annihilate_keyspace_tables, SESSIONS
         annihilate_keyspace_tables('mykeyspace')
+        for keyspace_name, session in SESSIONS.copy().items():
+            if keyspace_name in ['global']:
+                continue
+
+            session.shutdown()
+            del SESSIONS[keyspace_name]
+
 
     request.addfinalizer(destroy_case)
 
@@ -75,7 +82,6 @@ def test_float_api():
     insert([one])
     for idx, entry in enumerate(select(TestModelFloat)):
         assert entry.input_one == data
-
 
 def test_boolean_api():
     from corm import register_table, insert, sync_schema
@@ -196,8 +202,9 @@ def test_select_where_api():
         two: str
         source: TestModelSelectSource
 
-    register_table(TestModelSelectSource)
-    register_table(TestModelSelectPivot)
+    # TODO: Build UserType integration
+    # register_table(TestModelSelectSource)
+    # register_table(TestModelSelectPivot)
 
 def test_alter_table_api():
     from corm import register_table, insert, sync_schema, select, obtain_session

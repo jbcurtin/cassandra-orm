@@ -1,3 +1,6 @@
+CIP=$(shell docker inspect cassandra-datastore|jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
+CIP=127.0.0.1
+
 release:
 	pip install -U twine
 	pip install -U setuptools
@@ -22,3 +25,7 @@ build-docs:
 	mkdir -p /tmp/docs
 	rm -rf /tmp/docs/*
 	sphinx-build -b html docs/ /tmp/docs
+
+tests:
+	PYTHONPATH='.' CLUSTER_IPS="$(CIP)" pytest corm-tests/test_corm_api.py -x
+	PYTHONPATH='.' CLUSTER_IPS="$(CIP)" pytest corm-tests/test_etl.py -x
