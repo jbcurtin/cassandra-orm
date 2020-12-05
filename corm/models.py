@@ -7,6 +7,11 @@ from corm.constants import ENCODING
 
 PWN = typing.TypeVar('PWN')
 
+class CORMUDTBase:
+    def __init__(self: PWN, *args, **kwargs) -> None:
+        for idx, (name, annotation) in enumerate(self.__annotations__.items()):
+            setattr(self, name, args[idx])
+
 class CORMBase:
     def __init__(self: PWN, *args, **kwargs) -> None:
         for idx, (name, annotation) in enumerate(self.__annotations__.items()):
@@ -20,7 +25,14 @@ class CORMBase:
                 datum[field_name] = value
 
             else:
-                datum[field_name] = self._corm_details.field_transliterators[idx].python_to_cql(value)
+                if issubclass(value.__class__, CORMUDTBase):
+                    datum[field_name] = {}
+                    for udt_idx, udt_field_name in enumerate(value._udt_details.field_names):
+                        udt_transliterator = value._udt_details.field_transliterators[udt_idx]
+                        datum[field_name][udt_field_name] = udt_transliterator.python_to_cql(getattr(value, udt_field_name, None))
+
+                else:
+                    datum[field_name] = self._corm_details.field_transliterators[idx].python_to_cql(value)
 
         sorted_datum = ''.join(sorted(json.dumps(datum)))
         return hashlib.sha256(sorted_datum.encode(ENCODING)).hexdigest()

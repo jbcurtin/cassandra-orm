@@ -3,13 +3,14 @@ import typing
 
 from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
 from corm.auth import AuthProvider
-from corm.encoders import DT_MAP
-from corm.models import CORMBase
-from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy, TableOrdering
+from corm.encoders import DT_MAP, UDT_MAP, setup_udt_transliterator
+from corm.models import CORMBase, CORMUDTBase
+from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy, TableOrdering, CORMUDTDetails
 
 from cassandra.cluster import Cluster
 from cassandra.query import BatchStatement, SimpleStatement
 
+UDT_TYPES = {}
 TABLES = {}
 SESSIONS = {}
 if AuthProvider:
@@ -73,6 +74,28 @@ def annihilate_keyspace_tables(keyspace_name: str) -> None:
         cql = f'DROP TABLE IF EXISTS {keyspace_name}.{row.table_name};'
         SESSIONS['global'].execute(cql)
 
+def register_user_defined_type(udt: CORMUDTBase) -> None:
+    keyspace = getattr(udt, '__keyspace__', None)
+    if keyspace is None:
+        raise NotImplementedError(f'Table[{udt.__class__}] missing Keyspace')
+
+    field_names = []
+    field_transliterators = []
+    for field_name, annotation in udt.__annotations__.items():
+        field_names.append(field_name)
+        field_transliterators.append(DT_MAP[annotation])
+
+    udt_details = CORMUDTDetails(
+            udt.__keyspace__,
+            udt.__name__.lower(),
+            getattr(udt, '__udt_key__', udt.__name__.lower()),
+            field_names,
+            field_transliterators)
+
+    udt._udt_details = udt_details
+    UDT_TYPES[udt_details.name] = udt
+    setup_udt_transliterator(udt)
+
 def register_table(table: typing.NamedTuple) -> None:
     keyspace = getattr(table, '__keyspace__', None)
     if keyspace is None:
@@ -82,7 +105,12 @@ def register_table(table: typing.NamedTuple) -> None:
     field_transliterators = []
     for field_name, annotation in table.__annotations__.items():
         field_names.append(field_name)
-        field_transliterators.append(DT_MAP[annotation])
+        try:
+            transliterator = DT_MAP[annotation]
+        except KeyError:
+            transliterator = UDT_MAP[annotation]
+
+        field_transliterators.append(transliterator)
 
     pk_fields = getattr(table, '__primary_keys__', [])[:] or field_names[:]
     for pk_field in pk_fields:
@@ -107,16 +135,35 @@ def sync_schema() -> None:
     """
     https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useQuerySystemTable.html
     """
+    # Sync User Defined Types, then tables
+    keyspace_udts = {}
+    for udt_name, udt in UDT_TYPES.items():
+        udts = keyspace_udts.get(udt._udt_details.keyspace, [])
+        udts.append(udt)
+        keyspace_udts[udt._udt_details.keyspace] = udts
+
+    for udt_idx, (udt_keyspace_name, udts) in enumerate(keyspace_udts.items()):
+        if keyspace_exists(udt_keyspace_name) is False:
+            keyspace_create(udt_keyspace_name, True)
+
+        session = obtain_session(udt_keyspace_name, True)
+        for user_defined_type in udts:
+            session.execute(user_defined_type._udt_details.as_create_user_defined_type_cql())
+            CLUSTER.register_user_type(user_defined_type._udt_details.keyspace, udt._udt_details.udt_key, user_defined_type)
+
+            # (CLUSTER, udt)
+
+    # Create or Update Tables
     keyspace_tables = {}
     for table_name, table in TABLES.items():
         tables = keyspace_tables.get(table.keyspace, [])
         tables.append(table)
         keyspace_tables[table.keyspace] = tables
 
+
     for idx, (keyspace_name, tables) in enumerate(keyspace_tables.items()):
-        if idx == 0:
-            if keyspace_exists(keyspace_name) is False:
-                keyspace_create(keyspace_name, CassandraKeyspaceStrategy.Simple)
+        if keyspace_exists(keyspace_name) is False:
+            keyspace_create(keyspace_name, CassandraKeyspaceStrategy.Simple)
 
         session = obtain_session(keyspace_name, True)
         for table in tables:

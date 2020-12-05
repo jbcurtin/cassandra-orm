@@ -49,3 +49,22 @@ class CORMDetails(typing.NamedTuple):
             cql.append(');')
 
         return ''.join(cql)
+
+class CORMUDTDetails(typing.NamedTuple):
+    keyspace: str
+    name: str
+    udt_key: str
+    field_names: typing.List[str]
+    field_transliterators: typing.List[Transliterator]
+
+    def as_create_user_defined_type_cql(self: PWN) -> str:
+        entries = []
+        for idx, field_name in enumerate(self.field_names):
+            field_type = self.field_transliterators[idx].cql_type
+            entry = f'{field_name} {field_type}'
+            entries.append(entry)
+
+        cql = [f'''CREATE TYPE IF NOT EXISTS {self.keyspace}.{self.udt_key} (''']
+        cql.append(','.join(entries))
+        cql.append(');')
+        return ''.join(cql)
