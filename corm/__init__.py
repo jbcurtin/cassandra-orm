@@ -224,7 +224,7 @@ def insert(corm_objects: typing.List[typing.Any]) -> None:
     formatted_field_names = ','.join(field_names)
     formatted_question_marks = ','.join(['?' for idx in range(0, len(field_names))])
     CQL = f'INSERT INTO {keyspace}.{table_name} ({formatted_field_names}) VALUES ({formatted_question_marks})'
-    prepared_statement = obtain_session(keyspace).prepare(CQL)
+    prepared_statement = obtain_session(keyspace, True).prepare(CQL)
     cql_batch = BatchStatement()
     for corm_object in corm_objects:
         if corm_object.__class__ != instance_type:
