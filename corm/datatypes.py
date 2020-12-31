@@ -14,6 +14,24 @@ class Transliterator(typing.NamedTuple):
     cql_to_python: types.FunctionType
     values_encode_exemption: bool = False
 
+class EnumTransliterator(typing.NamedTuple):
+    python_type: enum.Enum
+    cql_type: str = 'TEXT'
+    python_to_cql: types.FunctionType = lambda x: x.value
+    # cql_to_python: types.FunctionType = lambda x: x
+    values_encode_exemption: bool = False
+
+    @property
+    def cql_to_python(self) -> typing.Any:
+        def _find_member(value: str) -> enum.Enum:
+            for mem in self.python_type.__members__.values():
+                if mem.value == value:
+                    return mem
+
+            raise NotImplementedError(f'Unable to find member for value[{value}]')
+
+        return _find_member
+
 class TableOrdering(enum.Enum):
     DESC = 'desc'
     ASC = 'asc'

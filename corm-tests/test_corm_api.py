@@ -332,3 +332,28 @@ def test_corm_auth():
 
     register_table(TestCORMAuth)
     sync_schema()
+
+def test_corm_enum():
+    import enum
+
+    from corm import register_table, insert, sync_schema, select
+    from corm.models import CORMBase
+
+    class OptionList(enum.Enum):
+        One = 'one'
+        Two = 'two'
+
+    class TestCormEnum(CORMBase):
+        __keyspace__ = 'test_corm_enum'
+
+        option: OptionList
+
+    register_table(TestCormEnum)
+    sync_schema()
+
+    first = TestCormEnum(OptionList.One)
+    second = TestCormEnum(OptionList.Two)
+    insert([first, second])
+
+    for idx, entry in enumerate(select(TestCormEnum)):
+        assert entry.option in OptionList.__members__.values()

@@ -1,3 +1,4 @@
+import enum
 import logging
 import typing
 
@@ -5,7 +6,7 @@ from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
 from corm.auth import AuthProvider
 from corm.encoders import DT_MAP, UDT_MAP, setup_udt_transliterator
 from corm.models import CORMBase, CORMUDTBase
-from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy, TableOrdering, CORMUDTDetails
+from corm.datatypes import CORMDetails, CassandraKeyspaceStrategy, TableOrdering, CORMUDTDetails, EnumTransliterator
 
 from cassandra.cluster import Cluster
 from cassandra.query import BatchStatement, SimpleStatement
@@ -108,7 +109,13 @@ def register_table(table: typing.NamedTuple) -> None:
         try:
             transliterator = DT_MAP[annotation]
         except KeyError:
-            transliterator = UDT_MAP[annotation]
+            if issubclass(annotation, enum.Enum):
+                transliterator = EnumTransliterator(annotation)
+
+            else:
+                transliterator = UDT_MAP.get(annotation, None)
+                if transliterator is None:
+                    raise NotImplementedError
 
         field_transliterators.append(transliterator)
 
@@ -264,8 +271,20 @@ class select:
 
         next_object = self._fetched.pop()
         values = []
-        for field_name, field_type in self._table.__annotations__.items():
-            values.append(getattr(next_object, field_name, None))
+        for field_name, annotation in self._table.__annotations__.items():
+            try:
+                transliterator = DT_MAP[annotation]
+            except KeyError:
+                if issubclass(annotation, enum.Enum):
+                    transliterator = EnumTransliterator(annotation)
+
+                else:
+                    transliterator = UDT_MAP.get(annotation, None)
+                    if transliterator is None:
+                        raise NotImplementedError
+
+            raw_value = getattr(next_object, field_name, None)
+            values.append(transliterator.cql_to_python(raw_value))
 
         return self._table(*values)
 
