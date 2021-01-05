@@ -9,6 +9,9 @@ def datetime__python_to_cql(stamp: datetime) -> str:
     return stamp.strftime(DATETIME_FORMAT)
 
 def datetime__cql_to_python(stamp: str) -> datetime:
+    if isinstance(stamp, datetime):
+        return stamp
+
     return datetime.strptime(stamp, DATETIME_FORMAT)
 
 DT_MAP = {

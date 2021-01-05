@@ -401,4 +401,3 @@ def test_corm_where():
         assert idx in [0, 1]
         assert entry.score in [3, 4]
         assert entry.option == OptionList.Two
-
