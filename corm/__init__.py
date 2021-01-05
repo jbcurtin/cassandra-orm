@@ -288,6 +288,52 @@ class select:
 
         return self._table(*values)
 
-class where:
-    def __init__(self: PWN) -> None:
-        raise NotImplementedError
+class Operator(enum.Enum):
+    Equal = 'equal'
+
+class cp:
+    def __init__(self: PWN, operator: Operator, field_name: str, value: typing.Any) -> None:
+        self._operator = operator
+        self._field_name = field_name
+        self._value = value
+
+    def as_cql(self: PWN, table: CORMBase) -> str:
+        assert self._field_name in table.__annotations__.keys(), f'Field[{self._field_name}] not available on Table[{table}]'
+        if isinstance(self._value, (float, int)):
+            return f"{self._field_name} = {self._value}"
+
+        elif issubclass(self._value.__class__, enum.Enum):
+            return f"{self._field_name} = '{self._value.value}'"
+
+        elif isinstance(self._value, str):
+            return f"{self._field_name} = '{self._value}'"
+
+        else:
+            raise NotImplementedError(self._value.__class__)
+
+class where(select):
+    def __init__(self: PWN, table: CORMBase, compare_functions: typing.List[cp], field_names: typing.List[str] = [], fetch_size: int = 100, limit: int = 0) -> None:
+        self._table = table
+        self._field_names = field_names or table._corm_details.field_names
+
+        formatted_field_names = ','.join(self._field_names)
+        keyspace = self._table._corm_details.keyspace
+        table_name = self._table._corm_details.table_name
+
+        # select * from marketstack_com.history where symbol = 'LTUU' limit 3 ALLOW FILTERING
+        self._query = f'SELECT {formatted_field_names} FROM {keyspace}.{table_name}'
+        where_clause = ' AND'.join([cp_func.as_cql(table) for cp_func in compare_functions])
+        if where_clause:
+            self._query = f'{self._query} WHERE {where_clause}'
+
+        if limit > 0:
+            self._query = f'{self._query} LIMIT = {limit}'
+
+        if where_clause:
+            self._query = f'{self._query} ALLOW FILTERING'
+
+        self._fetch_size = fetch_size
+        self._stmt = SimpleStatement(self._query, fetch_size=fetch_size)
+        self._iter = obtain_session(self._table._corm_details.keyspace).execute(self._stmt)
+        self._fetched = []
+        self._fetched.extend(self._iter.current_rows)

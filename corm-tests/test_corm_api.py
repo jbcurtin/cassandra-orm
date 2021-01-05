@@ -357,3 +357,48 @@ def test_corm_enum():
 
     for idx, entry in enumerate(select(TestCormEnum)):
         assert entry.option in OptionList.__members__.values()
+
+def test_corm_where():
+    import enum
+
+    from corm import register_table, insert, sync_schema, select, where, cp, Operator
+    from corm.models import CORMBase
+
+    class OptionList(enum.Enum):
+        One = 'one'
+        Two = 'two'
+
+    class TestCORMWhere(CORMBase):
+        __keyspace__ = 'test_corm_where'
+
+        option: OptionList
+        score: int
+
+    register_table(TestCORMWhere)
+    sync_schema()
+    one = TestCORMWhere(OptionList.One, 1)
+    two = TestCORMWhere(OptionList.One, 2)
+    three = TestCORMWhere(OptionList.Two, 3)
+    four = TestCORMWhere(OptionList.Two, 4)
+    insert([one, two, three, four])
+
+    for idx, entry in enumerate(where(TestCORMWhere, [cp(Operator.Equal, 'score', 4)])):
+        assert idx == 0
+        assert entry.score == 4
+        assert entry.option == OptionList.Two
+
+    for idx, entry in enumerate(where(TestCORMWhere, [cp(Operator.Equal, 'score', 1)])):
+        assert idx == 0
+        assert entry.score == 1 
+        assert entry.option == OptionList.One
+
+    for idx, entry in enumerate(where(TestCORMWhere, [cp(Operator.Equal, 'option', OptionList.One)])):
+        assert idx in [0, 1]
+        assert entry.score in [1, 2]
+        assert entry.option == OptionList.One
+
+    for idx, entry in enumerate(where(TestCORMWhere, [cp(Operator.Equal, 'option', OptionList.Two)])):
+        assert idx in [0, 1]
+        assert entry.score in [3, 4]
+        assert entry.option == OptionList.Two
+

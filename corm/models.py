@@ -12,6 +12,14 @@ class CORMUDTBase:
         for idx, (name, annotation) in enumerate(self.__annotations__.items()):
             setattr(self, name, args[idx])
 
+class CORMField:
+    def __init__(self: PWN, name: str, annotation: typing.Any) -> None:
+        self.name = name
+        self.annotation = annotation
+
+    def __repr__(self: PWN) -> str:
+        return f'CORMField <{self.name}: {self.annotation}>'
+
 class CORMBase:
     def __init__(self: PWN, *args, **kwargs) -> None:
         for idx, (name, annotation) in enumerate(self.__annotations__.items()):
