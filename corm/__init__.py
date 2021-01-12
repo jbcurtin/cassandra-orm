@@ -269,6 +269,9 @@ class select:
             self._iter.fetch_next_page()
             self._fetched.extend(self._iter.current_rows)
 
+        if len(self._fetched) < 1:
+            raise StopIteration
+
         next_object = self._fetched.pop()
         values = []
         for field_name, annotation in self._table.__annotations__.items():
