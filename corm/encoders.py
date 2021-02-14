@@ -1,3 +1,5 @@
+import uuid
+
 from corm.annotations import Set
 from corm.constants import DATETIME_FORMAT
 from corm.datatypes import Transliterator
@@ -5,14 +7,17 @@ from corm.models import CORMUDTBase
 
 from datetime import datetime
 
+
 def datetime__python_to_cql(stamp: datetime) -> str:
     return stamp.strftime(DATETIME_FORMAT)
+
 
 def datetime__cql_to_python(stamp: str) -> datetime:
     if isinstance(stamp, datetime):
         return stamp
 
     return datetime.strptime(stamp, DATETIME_FORMAT)
+
 
 DT_MAP = {
     str: Transliterator(str, 'TEXT', lambda x: str(x), lambda x: str(x)),
@@ -21,6 +26,7 @@ DT_MAP = {
     Set: Transliterator(Set, 'SET<text>', lambda x: [i for i in x], lambda x: x),
     bool: Transliterator(bool, 'BOOLEAN', lambda x: x, lambda x: x),
     float: Transliterator(float, 'DOUBLE', lambda x: x, lambda x: x),
+    uuid.UUID: Transliterator(uuid.UUID, 'UUID', lambda x: x, lambda x: x),
 }
 
 UDT_MAP = {}

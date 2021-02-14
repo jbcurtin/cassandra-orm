@@ -24,6 +24,9 @@ class Mode(enum.Enum):
     CassandraToPostgreSQL = 'cassandra-to-postgresql'
     CassandraToCSV = 'cassandra-to-csv'
     CassandraGenerateEntries = 'cassandra-generate-data'
+    CSVToGoogleCloudStorage = 'csv-to-google-cloud-storage'
+    CassandraToBigTable = 'cassandra-to-big-table'
+
 
 formatted_modes = ', '.join([val.value for val in Mode.__members__.values()])
 def obtain_options() -> argparse.Namespace:
@@ -77,7 +80,7 @@ def main() -> None:
                     os.makedirs(table_dirpath)
 
                 export_to_csv(table, table_filepath, conn_info)
-                
+
     elif options.mode is Mode.CassandraGenerateEntries:
         from corm import register_table, insert, sync_schema
         from corm.models import CORMBase
@@ -91,6 +94,10 @@ def main() -> None:
             sync_schema()
             for entry in generate_entries(table):
                 insert([entry])
+
+    else:
+        raise NotImplementedError(options.mode)
+
 
 def run_from_cli():
     sys.path.append(os.getcwd())

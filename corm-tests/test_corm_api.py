@@ -358,6 +358,7 @@ def test_corm_enum():
     for idx, entry in enumerate(select(TestCormEnum)):
         assert entry.option in OptionList.__members__.values()
 
+
 def test_corm_where():
     import enum
 
@@ -401,3 +402,23 @@ def test_corm_where():
         assert idx in [0, 1]
         assert entry.score in [3, 4]
         assert entry.option == OptionList.Two
+
+
+def test_corm_uuid():
+    import uuid
+
+    from corm import register_table, insert, sync_schema, select
+    from corm.models import CORMBase
+
+
+    class TestCORMUUID(CORMBase):
+        __keyspace__ = 'mykeyspace'
+
+        identity_test: uuid.UUID
+
+    register_table(TestCORMUUID)
+    sync_schema()
+    one = TestCORMUUID(uuid.uuid4())
+    insert([one])
+    for entry in select(TestCORMUUID):
+        assert isinstance(entry.identity_test, uuid.UUID)

@@ -1,5 +1,6 @@
 import hashlib
 import typing
+import uuid
 
 import ujson as json
 
@@ -39,8 +40,12 @@ class CORMBase:
                         udt_transliterator = value._udt_details.field_transliterators[udt_idx]
                         datum[field_name][udt_field_name] = udt_transliterator.python_to_cql(getattr(value, udt_field_name, None))
 
+                elif isinstance(value, uuid.UUID):
+                    datum[field_name] = str(self._corm_details.field_transliterators[idx].python_to_cql(value))
+
                 else:
                     datum[field_name] = self._corm_details.field_transliterators[idx].python_to_cql(value)
+
 
         sorted_datum = ''.join(sorted(json.dumps(datum)))
         return hashlib.sha256(sorted_datum.encode(ENCODING)).hexdigest()
