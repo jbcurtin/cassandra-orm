@@ -3,6 +3,7 @@ import logging
 import typing
 
 from corm.constants import CLUSTER_IPS, CLUSTER_PORT, PWN
+from corm.annotations import Set
 from corm.auth import AuthProvider
 from corm.encoders import DT_MAP, UDT_MAP, setup_udt_transliterator
 from corm.models import CORMBase, CORMUDTBase
@@ -109,7 +110,11 @@ def register_table(table: typing.NamedTuple) -> None:
         try:
             transliterator = DT_MAP[annotation]
         except KeyError:
-            if issubclass(annotation, enum.Enum):
+            if isinstance(annotation, Set):
+                import pdb; pdb.set_trace()
+                pass
+
+            elif issubclass(annotation, enum.Enum):
                 transliterator = EnumTransliterator(annotation)
 
             else:

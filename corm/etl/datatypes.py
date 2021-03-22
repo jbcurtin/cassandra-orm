@@ -6,6 +6,7 @@ from corm.etl.helpers import rationalize_docker_containers, DBEngine
 
 from urllib.parse import urlparse
 
+
 class ConnectionInfo(typing.NamedTuple):
     engine: DBEngine
     username: str

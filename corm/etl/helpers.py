@@ -11,7 +11,7 @@ from corm.constants import ENCODING, CLUSTER_PORT
 from corm.etl.constants import PSQL_CLUSTER_PORT
 
 class DBEngine(enum.Enum):
-    PostgreSQL = ['postgres', 'postgresql', 'psql']
+    PostgreSQL = ['postgresql']
     Cassandra = ['cassandra']
 
 def rationalize_docker_containers(ip_address: str, engine: DBEngine) -> str:

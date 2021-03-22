@@ -67,6 +67,7 @@ def test__convert_data_to_postgresql():
     import tempfile
 
     from corm import register_table, insert, sync_schema
+    from corm.annotations import Set
     from corm.models import CORMBase
 
     from datetime import datetime
@@ -80,6 +81,7 @@ def test__convert_data_to_postgresql():
         text_data: str
         boolean_data: bool
         timestamp_data: datetime
+        set_data: Set
 
     register_table(TestModelToPostgreSQL)
     sync_schema()
@@ -88,7 +90,8 @@ def test__convert_data_to_postgresql():
         instance = TestModelToPostgreSQL(
                 generate_string(10), random.uniform(0, 1),
                 random.randint(0, 100), generate_string(2048),
-                bool(random.randint(0, 1)), datetime.utcnow() + timedelta(seconds=random.randint(0, 10)))
+                bool(random.randint(0, 1)), datetime.utcnow() + timedelta(seconds=random.randint(0, 10)),
+                [generate_string(10), generate_string(10)])
 
         insert_later.append(instance)
         if len(insert_later) % 10 == 0:
@@ -111,6 +114,7 @@ def test__convert_data_to_postgresql():
     sql_table = generate_sqlalchemy_table(TestModelToPostgreSQL, sql_metadata)
     sync_sqlalchemy_schema(sql_metadata)
     migrate_data_to_sqlalchemy_table(TestModelToPostgreSQL, sql_table, cassandra_info, psql_info)
+
 
 def test__export_to_csv_from_uri():
     import os

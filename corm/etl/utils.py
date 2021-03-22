@@ -75,7 +75,13 @@ def generate_sqlalchemy_table(table: CORMBase, metadata: MetaData) -> Table:
             sql_alchemy_types[field_name] = DT_SQLALCHEMY_MAP_POSTGRESQL[field_type]
 
     sql_alchemy_types['guid'] = String(65)
-    cols = [Column(field_name, field_type) for field_name, field_type in sql_alchemy_types.items()]
+    cols = []
+    for field_name, field_type in sql_alchemy_types.items():
+        if field_type is ARRAY:
+            cols.append(Column(field_name, ARRAY(String(1024))))
+        else:
+            cols.append(Column(field_name, field_type))
+
     return Table(table.__name__.lower(), metadata, *cols)
 
 def sync_sqlalchemy_schema(sql_metadata: MetaData) -> None:
